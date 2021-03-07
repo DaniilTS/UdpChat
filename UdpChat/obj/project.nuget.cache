@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "EBHA3JGT3we2n3OTYB0Ivkine2kPasRIiWBB0cjn9OKIqTp6LhNE36YiPPHuTvaRm0gjFIC6QfSEO05s1eRAaw==",
+  "dgSpecHash": "UayOZj93juoLgDen0gDRRlQviIrqW+8cH1WsZgxJKBmLTKHshr4cmfpWqwp+92tC6cK4DELdm25vxuauzw2Yrw==",
   "success": true,
-  "projectFilePath": "C:\\Users\\Stanislav\\RiderProjects\\UdpChat\\UdpChat\\UdpChat.csproj",
+  "projectFilePath": "C:\\Users\\Stanislav\\UdpChat\\UdpChat\\UdpChat.csproj",
   "expectedPackageFiles": [],
   "logs": []
 }

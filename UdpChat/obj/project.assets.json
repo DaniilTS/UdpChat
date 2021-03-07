@@ -14,11 +14,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Stanislav\\RiderProjects\\UdpChat\\UdpChat\\UdpChat.csproj",
+      "projectUniqueName": "C:\\Users\\Stanislav\\UdpChat\\UdpChat\\UdpChat.csproj",
       "projectName": "UdpChat",
-      "projectPath": "C:\\Users\\Stanislav\\RiderProjects\\UdpChat\\UdpChat\\UdpChat.csproj",
+      "projectPath": "C:\\Users\\Stanislav\\UdpChat\\UdpChat\\UdpChat.csproj",
       "packagesPath": "C:\\Users\\Stanislav\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Stanislav\\RiderProjects\\UdpChat\\UdpChat\\obj\\",
+      "outputPath": "C:\\Users\\Stanislav\\UdpChat\\UdpChat\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
