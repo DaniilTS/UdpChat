@@ -131,7 +131,9 @@ namespace UdpChat
                 var data = Encoding.UTF8.GetBytes(messageToSend); 
                 udpClientSender.Send(data, data.Length, RemoteHost, _remotePortToSendMessages);
                 
-                return (_lastRecievedMessageTime - _lastSendedMessageTime).TotalSeconds < 1;
+                Thread.Sleep(50);
+                
+                return Math.Abs((_lastRecievedMessageTime - _lastSendedMessageTime).TotalSeconds) < 1;
             }
             catch (Exception)
             {
