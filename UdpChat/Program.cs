@@ -16,30 +16,39 @@ namespace UdpChat
         private static int _remotePortToSendMessages;
         private static int _localPortToListenMessages;
 
+        private static string currentUserName;
+        private static string interlocutorUserName;
+
         private static DateTime _lastSendedMessageTime = DateTime.Now;
         private static DateTime _lastRecievedMessageTime = DateTime.Now.Subtract(TimeSpan.FromSeconds(10));
 
+
         private class Message
         {
+            public string UserName { get; }
             public DateTime SendTime { get; }
             public string Text { get; }
             public bool IsMine { get; }
 
-            public Message(DateTime sendTime, string text, bool isMine)
+            public Message(DateTime sendTime, string userName, string text, bool isMine)
             {
                 SendTime = sendTime;
+                UserName = userName;
                 Text = text;
                 IsMine = isMine;
             }
         }
-        
+
         private static List<Message> Messages = new List<Message>();
 
-        
+
         public static void Main()
         {
             Console.OutputEncoding = Encoding.UTF8;
-            
+
+            Console.WriteLine("Insert your nickname:");
+            currentUserName = Console.ReadLine();
+
             InitConnectionStrings();
 
             var receiveThread = new Thread(ReceiveMessage);
@@ -55,7 +64,7 @@ namespace UdpChat
 
             Console.WriteLine("Enter the connection port: ");
             _remotePortToSendMessages = int.Parse(Console.ReadLine() ?? string.Empty);
-            
+
             Console.Clear();
         }
 
@@ -69,12 +78,12 @@ namespace UdpChat
                 {
                     var message = Console.ReadLine();
                     var currentTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-                    var messageToSend = currentTime.ToString(CultureInfo.InvariantCulture) + "|||||" + message;
+                    var messageToSend = currentTime + "|||||" + $"{currentUserName}" + "|||||" + message;
                     _lastSendedMessageTime = DateTime.Now;
 
                     if (SendIsOk(udpClientSender, messageToSend))
                     {
-                        Messages.Add(new Message(Convert.ToDateTime(currentTime), message, true));
+                        Messages.Add(new Message(Convert.ToDateTime(currentTime), currentUserName, message, true));
                         UpdateMessages();
                     }
                     else
@@ -100,20 +109,21 @@ namespace UdpChat
                 {
                     var data = udpClientReciever.Receive(ref remoteAdressIp);
                     var recievedMessage = Encoding.UTF8.GetString(data);
-                    
+
                     if (recievedMessage == "OK:200")
                     {
                         _lastRecievedMessageTime = DateTime.Now;
                     }
                     else
                     {
-                        var timeAndMessage = recievedMessage.Split("|||||");
-                        var currentTime = Convert.ToDateTime(timeAndMessage[0]);
-                        var message = timeAndMessage[1];
-                        
-                        Messages.Add(new Message(currentTime, message, false));
+                        var timeUserMessage = recievedMessage.Split("|||||");
+                        var currentTime = Convert.ToDateTime(timeUserMessage[0]);
+                        interlocutorUserName = timeUserMessage[1];
+                        var message = timeUserMessage[2];
+
+                        Messages.Add(new Message(currentTime, interlocutorUserName, message, false));
                         UpdateMessages();
-                        
+
                         ReturnOkResult(udpClientReciever);
                     }
                 }
@@ -128,11 +138,11 @@ namespace UdpChat
         {
             try
             {
-                var data = Encoding.UTF8.GetBytes(messageToSend); 
+                var data = Encoding.UTF8.GetBytes(messageToSend);
                 udpClientSender.Send(data, data.Length, RemoteHost, _remotePortToSendMessages);
-                
-                Thread.Sleep(50);
-                
+
+                Thread.Sleep(75);
+
                 return Math.Abs((_lastRecievedMessageTime - _lastSendedMessageTime).TotalSeconds) < 1;
             }
             catch (Exception)
@@ -143,7 +153,7 @@ namespace UdpChat
 
         private static void ReturnOkResult(UdpClient client)
         {
-            var data = Encoding.UTF8.GetBytes("OK:200"); 
+            var data = Encoding.UTF8.GetBytes("OK:200");
             client.Send(data, data.Length, RemoteHost, _remotePortToSendMessages);
         }
 
@@ -153,7 +163,7 @@ namespace UdpChat
             var sortedMessages = Messages.OrderBy(message => message.SendTime);
             foreach (var message in sortedMessages)
             {
-                string isMineMessage = message.IsMine ? "You:" : "Interlocutor:";
+                var isMineMessage = message.IsMine ? $"{currentUserName}:" : $"{interlocutorUserName}:";
                 Console.WriteLine(isMineMessage + message.Text);
             }
         }
