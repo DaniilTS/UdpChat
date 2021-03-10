@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace UdpChat
 {
@@ -16,11 +17,10 @@ namespace UdpChat
         private static int _remotePortToSendMessages;
         private static int _localPortToListenMessages;
 
-        private static string currentUserName;
-        private static string interlocutorUserName;
+        private static string _currentUserName;
+        private static string _interlocutorUserName;
 
-        private static DateTime _lastSendedMessageTime = DateTime.Now;
-        private static DateTime _lastRecievedMessageTime = DateTime.Now.Subtract(TimeSpan.FromSeconds(10));
+        private static string _separator = "|||||";
 
 
         private class Message
@@ -29,13 +29,17 @@ namespace UdpChat
             public DateTime SendTime { get; }
             public string Text { get; }
             public bool IsMine { get; }
+            public bool IsConfirmed { get; set; }
+            public string Key { get; }
 
-            public Message(DateTime sendTime, string userName, string text, bool isMine)
+            public Message(DateTime sendTime, string userName, string text, bool isMine, string key)
             {
-                SendTime = sendTime;
                 UserName = userName;
+                SendTime = sendTime;
                 Text = text;
                 IsMine = isMine;
+                IsConfirmed = false;
+                Key = key;
             }
         }
 
@@ -47,7 +51,7 @@ namespace UdpChat
             Console.OutputEncoding = Encoding.UTF8;
 
             Console.WriteLine("Insert your nickname:");
-            currentUserName = Console.ReadLine();
+            _currentUserName = Console.ReadLine();
 
             InitConnectionStrings();
 
@@ -78,18 +82,15 @@ namespace UdpChat
                 {
                     var message = Console.ReadLine();
                     var currentTime = DateTime.Now.ToString(CultureInfo.InvariantCulture);
-                    var messageToSend = currentTime + "|||||" + $"{currentUserName}" + "|||||" + message;
-                    _lastSendedMessageTime = DateTime.Now;
+                    var messageToSend = currentTime + _separator + $"{_currentUserName}" + _separator + message;
 
-                    if (SendIsOk(udpClientSender, messageToSend))
-                    {
-                        Messages.Add(new Message(Convert.ToDateTime(currentTime), currentUserName, message, true));
-                        UpdateMessages();
-                    }
-                    else
-                    {
-                        Console.WriteLine("Error was acquired while sending this message. Please, try again.");
-                    }
+                    var key = GenerateKey(messageToSend);
+                    
+                    var data = Encoding.UTF8.GetBytes(messageToSend);
+                    udpClientSender.Send(data, data.Length, RemoteHost, _remotePortToSendMessages);
+                    
+                    Messages.Add(new Message(Convert.ToDateTime(currentTime), _currentUserName, message, true, key));
+                    UpdateMessages();
                 }
             }
             finally
@@ -98,7 +99,7 @@ namespace UdpChat
             }
         }
 
-        private static void ReceiveMessage()
+        private static async void ReceiveMessage()
         {
             var udpClientReciever = new UdpClient(_localPortToListenMessages);
             IPEndPoint remoteAdressIp = null;
@@ -110,21 +111,24 @@ namespace UdpChat
                     var data = udpClientReciever.Receive(ref remoteAdressIp);
                     var recievedMessage = Encoding.UTF8.GetString(data);
 
-                    if (recievedMessage == "OK:200")
+                    var messageWithThatKey = Messages.FirstOrDefault(message => message.Key == recievedMessage && message.IsConfirmed != true);
+                    if (messageWithThatKey != null)
                     {
-                        _lastRecievedMessageTime = DateTime.Now;
+                        messageWithThatKey.IsConfirmed = true;
+                        UpdateMessages();   
                     }
                     else
                     {
-                        var timeUserMessage = recievedMessage.Split("|||||");
+                        var timeUserMessage = recievedMessage.Split(_separator);
                         var currentTime = Convert.ToDateTime(timeUserMessage[0]);
-                        interlocutorUserName = timeUserMessage[1];
+                        _interlocutorUserName = timeUserMessage[1];
                         var message = timeUserMessage[2];
 
-                        Messages.Add(new Message(currentTime, interlocutorUserName, message, false));
+                        var key = GenerateKey(recievedMessage);
+                        Messages.Add(new Message(currentTime, _interlocutorUserName, message, false, key));
                         UpdateMessages();
 
-                        ReturnOkResult(udpClientReciever);
+                        await ReturnOkResult(udpClientReciever, key);
                     }
                 }
             }
@@ -134,27 +138,25 @@ namespace UdpChat
             }
         }
 
-        private static bool SendIsOk(UdpClient udpClientSender, string messageToSend)
+        private static async Task ReturnOkResult(UdpClient client, string key)
         {
-            try
-            {
-                var data = Encoding.UTF8.GetBytes(messageToSend);
-                udpClientSender.Send(data, data.Length, RemoteHost, _remotePortToSendMessages);
-
-                Thread.Sleep(75);
-
-                return Math.Abs((_lastRecievedMessageTime - _lastSendedMessageTime).TotalSeconds) < 1;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
+            var data = Encoding.UTF8.GetBytes(key);
+            await client.SendAsync(data, data.Length, RemoteHost, _remotePortToSendMessages);
         }
 
-        private static void ReturnOkResult(UdpClient client)
+        private static string GenerateKey(string message)
         {
-            var data = Encoding.UTF8.GetBytes("OK:200");
-            client.Send(data, data.Length, RemoteHost, _remotePortToSendMessages);
+            var key = string.Empty;
+            var messageStringBuilder = new StringBuilder(message);
+            
+            for (var i = 0; i < messageStringBuilder.Length; i += 2)
+            {
+                key = new string(messageStringBuilder[i] + key);
+            }
+
+            key = new string(key + "|OK|");
+
+            return key;
         }
 
         private static void UpdateMessages()
@@ -163,8 +165,23 @@ namespace UdpChat
             var sortedMessages = Messages.OrderBy(message => message.SendTime);
             foreach (var message in sortedMessages)
             {
-                var isMineMessage = message.IsMine ? $"{currentUserName}:" : $"{interlocutorUserName}:";
-                Console.WriteLine(isMineMessage + message.Text);
+                if (message.IsMine)
+                {
+                    string isConfirmedMessage;
+                    if ((DateTime.Now - message.SendTime).TotalMinutes > 5)
+                    {
+                        isConfirmedMessage = " (message lost)";
+                    }
+                    else
+                    {
+                        isConfirmedMessage = message.IsConfirmed ? " (delivered)" : " (undefined)";
+                    }
+                    Console.WriteLine($"{_currentUserName}: " + message.Text + isConfirmedMessage);
+                }
+                else
+                {
+                    Console.WriteLine($"{_interlocutorUserName}: " + message.Text);
+                }
             }
         }
     }
